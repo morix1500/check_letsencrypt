@@ -8,6 +8,7 @@ import (
 	"io"
 	"bufio"
 	"time"
+	"sync"
 )
 
 type CLI struct {
@@ -41,17 +42,23 @@ func (c *CLI) Run(args []string) int {
 	scanner := bufio.NewScanner(fp)
 	err_domain_list := []string{}
 
+	var wg sync.WaitGroup
+
 	for scanner.Scan() {
-		domain := scanner.Text()
-		isLE, err := check(domain)
-		if err != nil {
-			fmt.Fprintln(c.errStream, err)
-			err_domain_list = append(err_domain_list, domain)
-		}
-		if isLE {
-			fmt.Fprintln(c.outStream, domain)
-		}
+		wg.Add(1)
+		go func(domain string) {
+			isLE, err := check(domain)
+			if err != nil {
+				fmt.Fprintln(c.errStream, err)
+				err_domain_list = append(err_domain_list, domain)
+			}
+			if isLE {
+				fmt.Fprintln(c.outStream, domain)
+			}
+			defer wg.Done()
+		}(scanner.Text())
 	}
+	wg.Wait()
 	if len(err_domain_list) > 0 {
 		fmt.Fprintln(c.errStream, "Error List:")
 		for _, err_domain := range err_domain_list {
